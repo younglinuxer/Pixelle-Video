@@ -14,17 +14,16 @@
 Output preview components for web UI (right column)
 """
 
-import base64
 import os
-from pathlib import Path
 
 import streamlit as st
 from loguru import logger
 
-from web.i18n import tr, get_language
-from web.utils.async_helpers import run_async
 from pixelle_video.models.progress import ProgressEvent
-from pixelle_video.config import config_manager
+from pixelle_video.services.preflight import GenerationPreflightError
+from web.i18n import get_language, tr
+from web.utils.async_helpers import run_async
+from web.utils.streamlit_helpers import render_preflight_report
 
 
 def render_output_preview(pixelle_video, video_params):
@@ -66,17 +65,8 @@ def render_single_output(pixelle_video, video_params):
     with st.container(border=True):
         st.markdown(f"**{tr('section.video_generation')}**")
         
-        # Check if system is configured
-        if not config_manager.validate():
-            st.warning(tr("settings.not_configured"))
-        
         # Generate Button
         if st.button(tr("btn.generate"), type="primary", use_container_width=True):
-            # Validate system configuration
-            if not config_manager.validate():
-                st.error(tr("settings.not_configured"))
-                st.stop()
-            
             # Validate input
             if not text:
                 st.error(tr("error.input_required"))
@@ -182,7 +172,10 @@ def render_single_output(pixelle_video, video_params):
                 file_size_mb = result.file_size / (1024 * 1024)
                 
                 # Parse video size from template path
-                from pixelle_video.utils.template_util import parse_template_size, resolve_template_path
+                from pixelle_video.utils.template_util import (
+                    parse_template_size,
+                    resolve_template_path,
+                )
                 template_path = resolve_template_path(result.storyboard.config.frame_template)
                 video_width, video_height = parse_template_size(template_path)
                 
@@ -214,6 +207,11 @@ def render_single_output(pixelle_video, video_params):
                 else:
                     st.error(tr("status.video_not_found", path=result.video_path))
                 
+            except GenerationPreflightError as e:
+                status_text.text("")
+                progress_bar.empty()
+                render_preflight_report(e.report)
+                st.stop()
             except Exception as e:
                 status_text.text("")
                 progress_bar.empty()
@@ -232,11 +230,6 @@ def render_batch_output(pixelle_video, video_params):
         # Check if topics are provided
         if not topics:
             st.warning(tr("batch.no_topics"))
-            return
-        
-        # Check system configuration
-        if not config_manager.validate():
-            st.warning(tr("settings.not_configured"))
             return
         
         batch_count = len(topics)
@@ -342,8 +335,23 @@ def render_batch_output(pixelle_video, video_params):
                 return callback
             
             # Execute batch generation
-            from web.utils.batch_manager import SimpleBatchManager
             import time
+
+            from web.utils.batch_manager import SimpleBatchManager
+
+            preflight_params = {
+                **shared_config,
+                "mode": "generate",
+                "title": topics[0],
+            }
+            preflight_report = run_async(
+                pixelle_video.preflight.check_standard(
+                    text=topics[0],
+                    params=preflight_params,
+                )
+            )
+            if not render_preflight_report(preflight_report):
+                st.stop()
             
             batch_manager = SimpleBatchManager()
             start_time = time.time()

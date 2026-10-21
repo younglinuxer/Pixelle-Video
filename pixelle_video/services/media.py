@@ -19,11 +19,10 @@ Automatically detects output type based on ExecuteResult.
 
 from typing import Optional
 
-from comfykit import ComfyKit
 from loguru import logger
 
-from pixelle_video.services.comfy_base_service import ComfyBaseService
 from pixelle_video.models.media import MediaResult
+from pixelle_video.services.comfy_base_service import ComfyBaseService
 
 
 class MediaService(ComfyBaseService):
@@ -71,8 +70,13 @@ class MediaService(ComfyBaseService):
         
         Override parent method to support multiple prefixes
         """
-        from pixelle_video.utils.os_util import list_resource_dirs, list_resource_files, get_resource_path
         from pathlib import Path
+
+        from pixelle_video.utils.os_util import (
+            get_resource_path,
+            list_resource_dirs,
+            list_resource_files,
+        )
         
         workflows = []
         
@@ -204,7 +208,11 @@ class MediaService(ComfyBaseService):
                 comfyui_url="http://192.168.1.100:8188"
             )
         """
-        selected_workflow = workflow or self.config.get("default_workflow")
+        selected_workflow = workflow
+        if selected_workflow is None:
+            media_config_key = "video" if media_type == "video" else "image"
+            selected_workflow = self.global_config.get(media_config_key, {}).get("default_workflow")
+
         if selected_workflow and selected_workflow.startswith("api/"):
             if not self.core or not getattr(self.core, "api_media", None):
                 raise RuntimeError("API media service is not initialized")
@@ -226,7 +234,7 @@ class MediaService(ComfyBaseService):
             )
 
         # 1. Resolve workflow (returns structured info)
-        workflow_info = self._resolve_workflow(workflow=workflow)
+        workflow_info = self._resolve_workflow(workflow=selected_workflow)
         
         # 2. Build workflow parameters (ComfyKit config is now managed by core)
         workflow_params = {"prompt": prompt}

@@ -24,8 +24,11 @@ from typing import Any
 import streamlit as st
 from loguru import logger
 
-from web.i18n import tr, get_language
-from web.pipelines.base import PipelineUI, register_pipeline_ui
+from pixelle_video.config import config_manager
+from pixelle_video.models.progress import ProgressEvent
+from pixelle_video.services.preflight import GenerationPreflightError
+from web.components.content_input import render_bgm_section, render_version_info
+from web.i18n import get_language, tr
 from web.pipelines.api_workflows import (
     list_api_media_workflows,
     render_api_video_controls,
@@ -33,11 +36,12 @@ from web.pipelines.api_workflows import (
     workflow_source_help,
     workflow_source_label,
 )
-from web.components.content_input import render_bgm_section, render_version_info
+from web.pipelines.base import PipelineUI, register_pipeline_ui
 from web.utils.async_helpers import run_async
-from web.utils.streamlit_helpers import check_and_warn_selfhost_workflow
-from pixelle_video.config import config_manager
-from pixelle_video.models.progress import ProgressEvent
+from web.utils.streamlit_helpers import (
+    check_and_warn_selfhost_workflow,
+    render_preflight_report,
+)
 
 
 class AssetBasedPipelineUI(PipelineUI):
@@ -477,10 +481,6 @@ class AssetBasedPipelineUI(PipelineUI):
         with st.container(border=True):
             st.markdown(f"**{tr('section.video_generation')}**")
             
-            # Check configuration
-            if not config_manager.validate():
-                st.warning(tr("settings.not_configured"))
-            
             # Check if assets are provided
             assets = video_params.get("assets", [])
             if not assets:
@@ -499,11 +499,6 @@ class AssetBasedPipelineUI(PipelineUI):
             
             # Generate button
             if st.button(tr("btn.generate"), type="primary", use_container_width=True, key="asset_generate"):
-                # Validate
-                if not config_manager.validate():
-                    st.error(tr("settings.not_configured"))
-                    st.stop()
-                
                 # Show progress
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -633,6 +628,11 @@ class AssetBasedPipelineUI(PipelineUI):
                     else:
                         st.error(tr("status.video_not_found", path=ctx.final_video_path))
                 
+                except GenerationPreflightError as e:
+                    status_text.text("")
+                    progress_bar.empty()
+                    render_preflight_report(e.report)
+                    st.stop()
                 except Exception as e:
                     status_text.text("")
                     progress_bar.empty()

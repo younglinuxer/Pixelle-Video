@@ -18,38 +18,32 @@ This is the default pipeline for general-purpose video generation.
 Refactored to use LinearVideoPipeline (Template Method Pattern).
 """
 
-from datetime import datetime
-from pathlib import Path
-from typing import Optional, Callable, Literal, List
 import asyncio
 import shutil
+from datetime import datetime
+from pathlib import Path
+from typing import Callable, Optional
 
 from loguru import logger
 
-from pixelle_video.pipelines.linear import LinearVideoPipeline, PipelineContext
 from pixelle_video.models.progress import ProgressEvent
 from pixelle_video.models.storyboard import (
     Storyboard,
-    StoryboardFrame,
     StoryboardConfig,
-    ContentMetadata,
-    VideoGenerationResult
+    StoryboardFrame,
+    VideoGenerationResult,
 )
-from pixelle_video.utils.content_generators import (
-    generate_title,
-    generate_narrations_from_topic,
-    split_narration_script,
-    generate_image_prompts,
-)
-from pixelle_video.utils.os_util import (
-    create_task_output_dir,
-    get_task_final_video_path
-)
-from pixelle_video.utils.template_util import get_template_type
-from pixelle_video.utils.prompt_helper import build_image_prompt
+from pixelle_video.pipelines.linear import LinearVideoPipeline, PipelineContext
 from pixelle_video.services.video import VideoService
-
-
+from pixelle_video.utils.content_generators import (
+    generate_image_prompts,
+    generate_narrations_from_topic,
+    generate_title,
+    split_narration_script,
+)
+from pixelle_video.utils.os_util import create_task_output_dir, get_task_final_video_path
+from pixelle_video.utils.prompt_helper import build_image_prompt
+from pixelle_video.utils.template_util import get_template_type
 
 
 class StandardPipeline(LinearVideoPipeline):
@@ -72,6 +66,21 @@ class StandardPipeline(LinearVideoPipeline):
     - "generate": LLM generates narrations from topic
     - "fixed": Use provided script as-is (each line = one narration)
     """
+
+    async def __call__(
+        self,
+        text: str,
+        progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
+        **kwargs,
+    ) -> VideoGenerationResult:
+        """Run readiness checks before creating task files or calling providers."""
+        report = await self.core.preflight.check_standard(text=text, params=kwargs)
+        report.raise_for_errors()
+        return await super().__call__(
+            text=text,
+            progress_callback=progress_callback,
+            **kwargs,
+        )
     
     # ==================== Lifecycle Methods ====================
 
@@ -161,12 +170,12 @@ class StandardPipeline(LinearVideoPipeline):
         template_requires_media = (template_type in ["image", "video"])
         
         if template_type == "image":
-            logger.info(f"📸 Template requires image generation")
+            logger.info("📸 Template requires image generation")
         elif template_type == "video":
-            logger.info(f"🎬 Template requires video generation")
+            logger.info("🎬 Template requires video generation")
         else:  # static
-            logger.info(f"⚡ Static template - skipping media generation pipeline")
-            logger.info(f"   💡 Benefits: Faster generation + Lower cost + No ComfyUI dependency")
+            logger.info("⚡ Static template - skipping media generation pipeline")
+            logger.info("   💡 Benefits: Faster generation + Lower cost + No ComfyUI dependency")
         
         # Only generate image prompts if template requires media
         if template_requires_media:
@@ -223,7 +232,7 @@ class StandardPipeline(LinearVideoPipeline):
         else:
             # Static template - skip image prompt generation entirely
             ctx.image_prompts = [None] * len(ctx.narrations)
-            logger.info(f"⚡ Skipped image prompt generation (static template)")
+            logger.info("⚡ Skipped image prompt generation (static template)")
             logger.info(f"   💡 Savings: {len(ctx.narrations)} LLM calls + {len(ctx.narrations)} media generations")
 
     async def initialize_storyboard(self, ctx: PipelineContext):

@@ -17,16 +17,18 @@ Supports both synchronous and asynchronous video generation.
 """
 
 import os
+
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
 from api.dependencies import PixelleVideoDep
 from api.schemas.video import (
+    VideoGenerateAsyncResponse,
     VideoGenerateRequest,
     VideoGenerateResponse,
-    VideoGenerateAsyncResponse,
 )
-from api.tasks import task_manager, TaskType
+from api.tasks import TaskType, task_manager
+from pixelle_video.services.preflight import GenerationPreflightError
 
 router = APIRouter(prefix="/video", tags=["Video Generation"])
 
@@ -54,8 +56,8 @@ def path_to_url(request: Request, file_path: str) -> str:
         
         Domain:  With domain request -> https://your-domain.com/api/files/...
     """
-    from pathlib import Path
     import os
+    from pathlib import Path
     
     # Normalize path separators to forward slashes first (for cross-platform compatibility)
     file_path = file_path.replace("\\", "/")
@@ -106,6 +108,12 @@ async def generate_video_sync(
     """
     try:
         logger.info(f"Sync video generation: {request_body.text[:50]}...")
+
+        preflight_report = await pixelle_video.preflight.check_standard(
+            text=request_body.text,
+            params=request_body.model_dump(exclude={"text"}, exclude_none=True),
+        )
+        preflight_report.raise_for_errors()
         
         # Auto-determine media_width and media_height from template meta tags (required)
         if not request_body.frame_template:
@@ -170,6 +178,8 @@ async def generate_video_sync(
             file_size=file_size
         )
         
+    except GenerationPreflightError as e:
+        raise HTTPException(status_code=422, detail=e.report.to_dict())
     except Exception as e:
         logger.error(f"Sync video generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -200,6 +210,13 @@ async def generate_video_async(
     """
     try:
         logger.info(f"Async video generation: {request_body.text[:50]}...")
+
+        # Reject unavailable dependencies before creating an in-memory task.
+        preflight_report = await pixelle_video.preflight.check_standard(
+            text=request_body.text,
+            params=request_body.model_dump(exclude={"text"}, exclude_none=True),
+        )
+        preflight_report.raise_for_errors()
         
         # Create task
         task = task_manager.create_task(
@@ -284,6 +301,8 @@ async def generate_video_async(
             task_id=task.task_id
         )
         
+    except GenerationPreflightError as e:
+        raise HTTPException(status_code=422, detail=e.report.to_dict())
     except Exception as e:
         logger.error(f"Async video generation error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

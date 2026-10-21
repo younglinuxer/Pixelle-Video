@@ -20,24 +20,25 @@ import hashlib
 import json
 from typing import Optional
 
-from loguru import logger
 from comfykit import ComfyKit
+from loguru import logger
 
 from pixelle_video.config import config_manager
-from pixelle_video.services.llm_service import LLMService
-from pixelle_video.services.tts_service import TTSService
-from pixelle_video.services.media import MediaService
-from pixelle_video.services.api_media import APIProviderMediaService
-from pixelle_video.services.image_analysis import ImageAnalysisService
-from pixelle_video.services.video_analysis import VideoAnalysisService
-from pixelle_video.services.api_asset_analysis import APIAssetAnalysisService
-from pixelle_video.services.video import VideoService
-from pixelle_video.services.frame_processor import FrameProcessor
-from pixelle_video.services.persistence import PersistenceService
-from pixelle_video.services.history_manager import HistoryManager
-from pixelle_video.pipelines.standard import StandardPipeline
-from pixelle_video.pipelines.custom import CustomPipeline
 from pixelle_video.pipelines.asset_based import AssetBasedPipeline
+from pixelle_video.pipelines.custom import CustomPipeline
+from pixelle_video.pipelines.standard import StandardPipeline
+from pixelle_video.services.api_asset_analysis import APIAssetAnalysisService
+from pixelle_video.services.api_media import APIProviderMediaService
+from pixelle_video.services.frame_processor import FrameProcessor
+from pixelle_video.services.history_manager import HistoryManager
+from pixelle_video.services.image_analysis import ImageAnalysisService
+from pixelle_video.services.llm_service import LLMService
+from pixelle_video.services.media import MediaService
+from pixelle_video.services.persistence import PersistenceService
+from pixelle_video.services.preflight import PreflightService
+from pixelle_video.services.tts_service import TTSService
+from pixelle_video.services.video import VideoService
+from pixelle_video.services.video_analysis import VideoAnalysisService
 
 
 class PixelleVideoCore:
@@ -96,6 +97,7 @@ class PixelleVideoCore:
         self.video: Optional[VideoService] = None
         self.frame_processor: Optional[FrameProcessor] = None
         self.persistence: Optional[PersistenceService] = None
+        self.preflight: Optional[PreflightService] = None
         self.history: Optional[HistoryManager] = None
         
         # Video generation pipelines (dictionary of pipeline_name -> pipeline_instance)
@@ -208,6 +210,7 @@ class PixelleVideoCore:
         self.video = VideoService()
         self.frame_processor = FrameProcessor(self)
         self.persistence = PersistenceService(output_dir="output")
+        self.preflight = PreflightService(self)
         self.history = HistoryManager(self.persistence)
         
         # 2. Register video generation pipelines

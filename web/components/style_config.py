@@ -14,16 +14,15 @@
 Style configuration components for web UI (middle column)
 """
 
-import os
 import base64
+import os
 from pathlib import Path
 
 import streamlit as st
 from loguru import logger
 
-from web.i18n import tr, get_language
-from web.utils.async_helpers import run_async
-from web.utils.streamlit_helpers import check_and_warn_selfhost_workflow
+from pixelle_video.config import config_manager
+from web.i18n import get_language, tr
 from web.pipelines.api_workflows import (
     list_api_media_workflows,
     list_local_media_workflows,
@@ -32,7 +31,8 @@ from web.pipelines.api_workflows import (
     workflow_source_help,
     workflow_source_label,
 )
-from pixelle_video.config import config_manager
+from web.utils.async_helpers import run_async
+from web.utils.streamlit_helpers import check_and_warn_selfhost_workflow
 
 
 def is_api_workflow(workflow_key: str | None) -> bool:
@@ -299,8 +299,22 @@ def render_style_config(pixelle_video):
         current_lang = get_language()
         
         # Import template utilities
-        from pixelle_video.utils.template_util import get_templates_grouped_by_size_and_type, get_template_type
+        from pixelle_video.utils.template_util import (
+            get_template_type,
+            get_templates_grouped_by_size_and_type,
+        )
         
+        # Resolve the configured default before rendering the type selector so
+        # a video default opens the UI in video mode instead of image mode.
+        template_config = pixelle_video.config.get("template", {})
+        config_default_template = template_config.get(
+            "default_template",
+            "1080x1920/image_default.html",
+        )
+        if config_default_template == "1080x1920/default.html":
+            config_default_template = "1080x1920/image_default.html"
+        config_default_type = get_template_type(config_default_template)
+
         # Template type selector
         st.markdown(f"**{tr('template.type_selector')}**")
         
@@ -315,7 +329,7 @@ def render_style_config(pixelle_video):
             tr('template.type_selector'),
             options=list(template_type_options.keys()),
             format_func=lambda x: template_type_options[x],
-            index=1,  # Default to 'image'
+            index=list(template_type_options.keys()).index(config_default_type),
             key="template_type_selector",
             label_visibility="collapsed",
             horizontal=True
@@ -343,21 +357,17 @@ def render_style_config(pixelle_video):
             'square': tr('orientation.square')
         }
         
-        # Get default template from config
-        template_config = pixelle_video.config.get("template", {})
-        config_default_template = template_config.get("default_template", "1080x1920/image_default.html")
-
-        # Backward compatibility
-        if config_default_template == "1080x1920/default.html":
-            config_default_template = "1080x1920/image_default.html"
-        
         # Determine type-specific default template
         type_default_templates = {
             'static': '1080x1920/static_default.html',
             'image': '1080x1920/image_default.html',
             'video': '1080x1920/video_default.html',
         }
-        type_specific_default = type_default_templates.get(selected_template_type, config_default_template)
+        type_specific_default = (
+            config_default_template
+            if selected_template_type == config_default_type
+            else type_default_templates.get(selected_template_type, config_default_template)
+        )
         
         # Initialize selected template in session state if not exists
         if 'selected_template' not in st.session_state:
@@ -512,6 +522,7 @@ def render_style_config(pixelle_video):
         
         # Custom template parameters (for video generation)
         from pixelle_video.services.frame_html import HTMLFrameGenerator
+
         # Resolve template path to support both data/templates/ and templates/
         from pixelle_video.utils.template_util import resolve_template_path
         template_path_for_params = resolve_template_path(frame_template)

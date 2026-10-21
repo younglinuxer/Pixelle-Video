@@ -3,11 +3,15 @@ import time
 from pathlib import Path
 from typing import Any
 
+import httpx
 import streamlit as st
 from loguru import logger
-import httpx
-from web.i18n import tr, get_language
-from web.pipelines.base import PipelineUI, register_pipeline_ui
+
+from pixelle_video.config import config_manager
+from pixelle_video.utils.os_util import create_task_output_dir
+from web.components.content_input import render_version_info
+from web.components.digital_tts_config import render_style_config
+from web.i18n import get_language, tr
 from web.pipelines.api_workflows import (
     list_api_media_workflows,
     render_api_video_controls,
@@ -15,13 +19,11 @@ from web.pipelines.api_workflows import (
     workflow_source_help,
     workflow_source_label,
 )
-from web.components.content_input import render_version_info
-from web.components.digital_tts_config import render_style_config
+from web.pipelines.base import PipelineUI, register_pipeline_ui
 from web.utils.async_helpers import run_async
 from web.utils.history_persistence import save_web_generation_history
-from web.utils.streamlit_helpers import check_and_warn_selfhost_workflow
-from pixelle_video.config import config_manager
-from pixelle_video.utils.os_util import create_task_output_dir
+from web.utils.streamlit_helpers import render_preflight_report
+
 
 class DigitalHumanPipelineUI(PipelineUI):
     """
@@ -426,10 +428,6 @@ class DigitalHumanPipelineUI(PipelineUI):
         with st.container(border=True):
             st.markdown(f"**{tr('section.video_generation')}**")
             
-            # Check configuration
-            if not config_manager.validate():
-                st.warning(tr("settings.not_configured"))
-            
             # Get input data
             character_assets = video_params.get("character_assets", [])
             goods_assets = video_params.get("goods_assets", [])
@@ -439,7 +437,7 @@ class DigitalHumanPipelineUI(PipelineUI):
             tts_voice = video_params.get("tts_voice", "zh-CN-YunjianNeural")
             tts_speed = video_params.get("tts_speed", 1.2)
             
-            logger.info(f"🔧 The obtained TTS parameters:")
+            logger.info("🔧 The obtained TTS parameters:")
             logger.info(f"  - tts_voice: {tts_voice}")
             logger.info(f"  - tts_speed: {tts_speed}")
             logger.info(f"  - video_params中的tts_voice: {video_params.get('tts_voice', 'NOT_FOUND')}")
@@ -495,9 +493,49 @@ class DigitalHumanPipelineUI(PipelineUI):
             
             # Generate button
             if st.button(tr("btn.generate"), type="primary", use_container_width=True, key="digital_human_generate"):
-                # Validate
-                if not config_manager.validate():
-                    st.error(tr("settings.not_configured"))
+                workflow_path = video_params["workflow_path"]
+                api_video_workflow = workflow_path.get("api_video_workflow")
+                tts_inference_mode = video_params.get("tts_inference_mode", "local")
+                tts_workflow = video_params.get("tts_workflow")
+                if tts_inference_mode == "comfyui" and not tts_workflow:
+                    st.error(tr("preflight.select_tts_workflow"))
+                    st.stop()
+
+                selected_workflows = []
+                if tts_workflow:
+                    selected_workflows.append(tts_workflow)
+                if api_video_workflow:
+                    selected_workflows.append(api_video_workflow)
+                else:
+                    selected_workflows.append(workflow_path.get("second_workflow_path"))
+                    if mode == "digital":
+                        api_image_workflow = workflow_path.get("api_image_workflow")
+                        if api_image_workflow:
+                            selected_workflows.append(api_image_workflow)
+                        else:
+                            selected_workflows.extend(
+                                [
+                                    workflow_path.get("first_workflow_path"),
+                                    workflow_path.get("third_workflow_path"),
+                                ]
+                            )
+
+                ref_audio = video_params.get("ref_audio")
+                input_files = [*character_assets, *goods_assets]
+                if ref_audio:
+                    input_files.append(ref_audio)
+                preflight_report = run_async(
+                    pixelle_video.preflight.check_requirements(
+                        require_llm=mode == "digital" and not goods_text.strip(),
+                        require_local_tts=tts_inference_mode == "local",
+                        workflows=selected_workflows,
+                        require_ffmpeg=True,
+                        input_files=input_files,
+                        tts_voice=tts_voice,
+                        tts_speed=tts_speed,
+                    )
+                )
+                if not render_preflight_report(preflight_report):
                     st.stop()
                 
                 # Show progress

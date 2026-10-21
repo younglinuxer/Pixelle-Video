@@ -3,11 +3,13 @@ import time
 from pathlib import Path
 from typing import Any
 
+import httpx
 import streamlit as st
 from loguru import logger
-import httpx
-from web.i18n import tr, get_language
-from web.pipelines.base import PipelineUI, register_pipeline_ui
+
+from pixelle_video.utils.os_util import create_task_output_dir
+from web.components.content_input import render_version_info
+from web.i18n import get_language, tr
 from web.pipelines.api_workflows import (
     is_api_workflow,
     list_api_media_workflows,
@@ -17,12 +19,14 @@ from web.pipelines.api_workflows import (
     workflow_source_help,
     workflow_source_label,
 )
-from web.components.content_input import render_version_info
+from web.pipelines.base import PipelineUI, register_pipeline_ui
 from web.utils.async_helpers import run_async
 from web.utils.history_persistence import save_web_generation_history
-from web.utils.streamlit_helpers import check_and_warn_selfhost_workflow
-from pixelle_video.config import config_manager
-from pixelle_video.utils.os_util import create_task_output_dir
+from web.utils.streamlit_helpers import (
+    check_and_warn_selfhost_workflow,
+    render_preflight_report,
+)
+
 
 class ImageToVideoPipelineUI(PipelineUI):
     """
@@ -216,10 +220,6 @@ class ImageToVideoPipelineUI(PipelineUI):
         with st.container(border=True):
             st.markdown(f"**{tr('section.video_generation')}**")
 
-            # Check configuration
-            if not config_manager.validate():
-                st.warning(tr("settings.not_configured"))
-            
             audio_assets = video_params.get("audio_assets", [])
             prompt_text = video_params.get("prompt_text", "")
             workflow_key = video_params.get("workflow_key")
@@ -251,8 +251,18 @@ class ImageToVideoPipelineUI(PipelineUI):
 
             # Generate button
             if st.button(tr("btn.generate"), type="primary", use_container_width=True, key="i2v_generate"):
-                if not config_manager.validate():
-                    st.error(tr("settings.not_configured"))
+                if not workflow_key:
+                    st.error(tr("preflight.select_i2v_workflow"))
+                    st.stop()
+
+                preflight_report = run_async(
+                    pixelle_video.preflight.check_requirements(
+                        workflows=[workflow_key],
+                        require_ffmpeg=True,
+                        input_files=audio_assets,
+                    )
+                )
+                if not render_preflight_report(preflight_report):
                     st.stop()
                 
                 progress_bar = st.progress(0)
