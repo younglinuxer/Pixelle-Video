@@ -78,7 +78,7 @@
     "inputs": {
       "frame_rate": 16,
       "loop_count": 0,
-      "filename_prefix": "Video",
+      "filename_prefix": "Pixelle_Wan2.1_FusionX",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -98,7 +98,7 @@
   },
   "37": {
     "inputs": {
-      "unet_name": "wan-fusionx/WanT2V_MasterModel.safetensors",
+      "unet_name": "wan-fusionx\\WanT2V_MasterModel.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -136,7 +136,10 @@
         "51",
         0
       ],
-      "length": 81,
+      "length": [
+        "53",
+        1
+      ],
       "batch_size": 1
     },
     "class_type": "EmptyHunyuanLatentVideo",
@@ -182,6 +185,28 @@
     "class_type": "easy int",
     "_meta": {
       "title": "$height.value"
+    }
+  },
+  "52": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "$duration.value"
+    }
+  },
+  "53": {
+    "inputs": {
+      "expression": "min(129, max(49, round(a * 16))) + (1 - (min(129, max(49, round(a * 16))) % 4) + 4) % 4",
+      "values.a": [
+        "52",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Duration to Wan frames (4n+1)"
     }
   }
 }

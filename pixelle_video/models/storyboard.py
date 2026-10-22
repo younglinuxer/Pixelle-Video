@@ -16,7 +16,7 @@ Storyboard data models for video generation
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -61,6 +61,11 @@ class StoryboardFrame:
     index: int                                 # Frame index (0-based)
     narration: str                             # Narration text
     image_prompt: str                          # Image generation prompt (can be None for text-only or video)
+
+    # Stable staged-project identity (optional for backward compatibility)
+    scene_id: Optional[str] = None
+    style_id: Optional[str] = None
+    source_asset_ids: List[str] = field(default_factory=list)
     
     # Generated resource paths
     audio_path: Optional[str] = None           # Audio file path (narration)

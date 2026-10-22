@@ -33,11 +33,13 @@ Example:
 """
 
 import math
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
+from PIL import Image, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
 from pixelle_video.models.progress import ProgressEvent
@@ -376,7 +378,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
             prompt=prompt,
             response_type=VideoScript,
             temperature=0.8,
-            max_tokens=4000
+            max_tokens=8192
         )
         
         # Convert to dict format for compatibility with downstream code
@@ -942,18 +944,37 @@ class AssetBasedPipeline(LinearVideoPipeline):
     # Helper methods
     
     def _get_asset_type(self, path: Path) -> str:
-        """Determine asset type from file extension"""
-        image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-        video_exts = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
-        
-        ext = path.suffix.lower()
-        
-        if ext in image_exts:
+        """Determine asset type by decoding the file instead of trusting its suffix."""
+        try:
+            with Image.open(path) as image:
+                image.verify()
             return "image"
-        elif ext in video_exts:
-            return "video"
-        else:
+        except (OSError, UnidentifiedImageError):
+            pass
+
+        try:
+            probe = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-select_streams",
+                    "v:0",
+                    "-show_entries",
+                    "stream=codec_type",
+                    "-of",
+                    "default=nokey=1:noprint_wrappers=1",
+                    str(path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            logger.warning(f"Unable to inspect media file {path}: {exc}")
             return "unknown"
+
+        return "video" if probe.returncode == 0 and "video" in probe.stdout.split() else "unknown"
 
     def _get_api_workflow_info(self, workflow_key: str) -> dict:
         """Find API workflow metadata for capability-aware adapter behavior."""

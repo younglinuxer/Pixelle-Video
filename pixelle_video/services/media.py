@@ -297,15 +297,13 @@ class MediaService(ComfyBaseService):
                 video_url = result.videos[0]
                 logger.info(f"✅ Generated video: {video_url}")
                 
-                # Try to extract duration from result (if available)
-                duration = None
-                if hasattr(result, 'duration') and result.duration:
-                    duration = result.duration
-                
                 return MediaResult(
                     media_type="video",
                     url=video_url,
-                    duration=duration
+                    # ComfyKit's ExecuteResult.duration is workflow execution time,
+                    # not the encoded video's playback duration. Leave this unset so
+                    # FrameProcessor measures the downloaded file with FFprobe.
+                    duration=None,
                 )
             else:  # image
                 # Image workflow - get image from result

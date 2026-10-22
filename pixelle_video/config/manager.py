@@ -15,11 +15,14 @@ Configuration Manager - Singleton pattern
 
 Provides unified access to configuration with automatic validation.
 """
+
 from pathlib import Path
 from typing import Any, Optional
+
 from loguru import logger
-from .schema import PixelleVideoConfig
+
 from .loader import load_config_dict, save_config_dict
+from .schema import PixelleVideoConfig
 
 
 class ConfigManager:
@@ -112,9 +115,16 @@ class ConfigManager:
             "api_key": self.config.llm.api_key,
             "base_url": self.config.llm.base_url,
             "model": self.config.llm.model,
+            "thinking_enabled": self.config.llm.thinking_enabled,
         }
     
-    def set_llm_config(self, api_key: str, base_url: str, model: str):
+    def set_llm_config(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        thinking_enabled: bool = False,
+    ):
         """Set LLM configuration"""
         from pixelle_video.utils.llm_util import normalize_openai_base_url
 
@@ -123,6 +133,7 @@ class ConfigManager:
                 "api_key": api_key,
                 "base_url": normalize_openai_base_url(base_url),
                 "model": model,
+                "thinking_enabled": thinking_enabled,
             }
         })
     

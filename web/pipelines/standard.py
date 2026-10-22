@@ -16,16 +16,21 @@ Standard Pipeline UI
 Implements the classic 3-column layout for the Standard Pipeline.
 """
 
-import streamlit as st
 from typing import Any
-from web.i18n import tr
 
-from web.pipelines.base import PipelineUI, register_pipeline_ui
+import streamlit as st
 
 # Import components
-from web.components.content_input import render_content_input, render_bgm_section, render_version_info
-from web.components.style_config import render_style_config
+from web.components.content_input import (
+    render_bgm_section,
+    render_content_input,
+    render_version_info,
+)
 from web.components.output_preview import render_output_preview
+from web.components.style_config import render_style_config
+from web.i18n import tr
+from web.pipelines.base import PipelineUI, register_pipeline_ui
+from web.pipelines.staged import StagedCreationUI
 
 
 class StandardPipelineUI(PipelineUI):
@@ -84,5 +89,5 @@ class StandardPipelineUI(PipelineUI):
             render_output_preview(pixelle_video, video_params)
 
 
-# Register self
-register_pipeline_ui(StandardPipelineUI)
+# Register the staged workspace. The class above remains the rollback implementation.
+register_pipeline_ui(StagedCreationUI)

@@ -1,0 +1,314 @@
+{
+  "92": {
+    "class_type": "SaveVideo",
+    "inputs": {
+      "filename_prefix": "video/Pixelle_MiniMax_H3",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "91",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "SaveVideo"
+    }
+  },
+  "11": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "24": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "23": {
+    "class_type": "VAEDecodeAudio",
+    "inputs": {
+      "samples": [
+        "14",
+        0
+      ],
+      "vae": [
+        "24",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAEDecodeAudio"
+    }
+  },
+  "10": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "14",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "17": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "9": {
+    "class_type": "BasicScheduler",
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "117",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "14": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "15",
+        0
+      ],
+      "guider": [
+        "16",
+        0
+      ],
+      "sampler": [
+        "17",
+        0
+      ],
+      "sigmas": [
+        "9",
+        0
+      ],
+      "latent_image": [
+        "104",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "16": {
+    "class_type": "BasicGuider",
+    "inputs": {
+      "model": [
+        "117",
+        0
+      ],
+      "conditioning": [
+        "104",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "BasicGuider"
+    }
+  },
+  "6": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "_meta": {
+      "title": "UNETLoader"
+    }
+  },
+  "13": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "_meta": {
+      "title": "CLIPLoader"
+    }
+  },
+  "15": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 556589502035082
+    },
+    "_meta": {
+      "title": "$seed.noise_seed"
+    }
+  },
+  "91": {
+    "class_type": "CreateVideo",
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "images": [
+        "10",
+        0
+      ],
+      "audio": [
+        "23",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "CreateVideo"
+    }
+  },
+  "104": {
+    "class_type": "MiniMaxH3ImageToVideo",
+    "inputs": {
+      "prompt": "Describe one coherent shot with clear subject action, camera movement, lighting, and environment. No text, subtitles, logos, or watermarks.",
+      "width": [
+        "120",
+        1
+      ],
+      "height": [
+        "121",
+        1
+      ],
+      "length": [
+        "107",
+        1
+      ],
+      "clip": [
+        "13",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "$prompt.prompt!"
+    }
+  },
+  "107": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "min(362, max(124, round(a * 24))) + (5 - (min(362, max(124, round(a * 24))) % 17)) % 17",
+      "values.a": [
+        "111",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "ComfyMathExpression"
+    }
+  },
+  "111": {
+    "class_type": "PrimitiveFloat",
+    "inputs": {
+      "value": 5
+    },
+    "_meta": {
+      "title": "$duration.value"
+    }
+  },
+  "116": {
+    "class_type": "LoraLoaderModelOnly",
+    "inputs": {
+      "model": [
+        "6",
+        0
+      ],
+      "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "strength_model": 1.0
+    },
+    "_meta": {
+      "title": "MiniMax H3 Turbo LoRA"
+    }
+  },
+  "117": {
+    "class_type": "MiniMaxH3SigmaShift",
+    "inputs": {
+      "model": [
+        "116",
+        0
+      ],
+      "shift_video": 12.0,
+      "shift_audio": 3.0
+    },
+    "_meta": {
+      "title": "MiniMax H3 Turbo Sigma Shift"
+    }
+  },
+  "118": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 768
+    },
+    "_meta": {
+      "title": "$width.value"
+    }
+  },
+  "119": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 768
+    },
+    "_meta": {
+      "title": "$height.value"
+    }
+  },
+  "120": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "max(32, round(a * 768 / max(a, b) / 32) * 32)",
+      "values.a": [
+        "118",
+        0
+      ],
+      "values.b": [
+        "119",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Normalize H3 width to fast 768p"
+    }
+  },
+  "121": {
+    "class_type": "ComfyMathExpression",
+    "inputs": {
+      "expression": "max(32, round(b * 768 / max(a, b) / 32) * 32)",
+      "values.a": [
+        "118",
+        0
+      ],
+      "values.b": [
+        "119",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Normalize H3 height to fast 768p"
+    }
+  }
+}

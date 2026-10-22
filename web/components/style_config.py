@@ -40,6 +40,25 @@ def is_api_workflow(workflow_key: str | None) -> bool:
     return bool(workflow_key and workflow_key.startswith("api/"))
 
 
+def get_template_preview_path(template_path: str, language: str = "zh_CN") -> str:
+    """Return the existing localized preview image for a template, if any."""
+    path = Path(template_path)
+    if len(path.parts) < 2:
+        return ""
+
+    size = path.parts[0]
+    template_name = path.stem
+    suffix = "" if language == "zh_CN" else "_en"
+    preview_root = Path("docs/images") / size
+    candidates = [
+        preview_root / f"{template_name}{suffix}.jpg",
+        preview_root / f"{template_name}{suffix}.png",
+        preview_root / f"{template_name}.jpg",
+        preview_root / f"{template_name}.png",
+    ]
+    return next((str(candidate) for candidate in candidates if candidate.is_file()), "")
+
+
 def render_style_config(pixelle_video):
     """Render style configuration section (middle column)"""
     # TTS Section (moved from left column)
@@ -246,45 +265,6 @@ def render_style_config(pixelle_video):
     # ====================================================================
     # Storyboard Template Section
     # ====================================================================
-    
-    def get_template_preview_path(template_path: str, language: str = "zh_CN") -> str:
-        """
-        Get the preview image path for a template based on language.
-        
-        Args:
-            template_path: Template path like "1080x1920/image_default.html"
-            language: Language code, either "zh_CN" or "en"
-            
-        Returns:
-            Path to preview image in docs/images/
-        """
-        # Extract size and template name from path
-        # e.g., "1080x1920/image_default.html" -> size="1080x1920", name="image_default"
-        path_parts = template_path.split('/')
-        if len(path_parts) >= 2:
-            size = path_parts[0]  # e.g., "1080x1920"
-            template_file = path_parts[1]  # e.g., "image_default.html"
-            template_name = template_file.replace('.html', '')  # e.g., "image_default"
-            
-            # Build preview image path
-            # Format: docs/images/{size}/{template_name}.jpg or {template_name}_en.jpg
-            # Chinese uses Chinese preview, all other languages use English preview for better i18n
-            suffix = "" if language == "zh_CN" else "_en"
-            
-            # Try different image extensions
-            for ext in ['.jpg', '.png']:
-                preview_path = f"docs/images/{size}/{template_name}{suffix}{ext}"
-                if os.path.exists(preview_path):
-                    return preview_path
-            
-            # Fallback: try without language suffix (for templates with only one version)
-            for ext in ['.jpg', '.png']:
-                preview_path = f"docs/images/{size}/{template_name}{ext}"
-                if os.path.exists(preview_path):
-                    return preview_path
-        
-        # If no preview found, return empty string
-        return ""
     
     with st.container(border=True):
         st.markdown(f"**{tr('section.template')}**")

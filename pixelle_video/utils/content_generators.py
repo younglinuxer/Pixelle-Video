@@ -19,9 +19,16 @@ These functions are reusable across different pipelines.
 
 import json
 import re
-from typing import List, Optional, Literal
+from typing import List, Literal, Optional
 
 from loguru import logger
+from pydantic import BaseModel, Field
+
+
+class NarrationResponse(BaseModel):
+    """Validated narration list returned by planning models."""
+
+    narrations: list[str] = Field(min_length=1)
 
 
 async def generate_title(
@@ -123,21 +130,14 @@ async def generate_narrations_from_topic(
         max_words=max_words
     )
     
-    response = await llm_service(
+    response: NarrationResponse = await llm_service(
         prompt=prompt,
         temperature=0.8,
-        max_tokens=2000
+        max_tokens=8192,
+        response_type=NarrationResponse,
     )
-    
-    logger.debug(f"LLM response: {response[:200]}...")
-    
-    # Parse JSON
-    result = _parse_json(response)
-    
-    if "narrations" not in result:
-        raise ValueError("Invalid response format: missing 'narrations' key")
-    
-    narrations = result["narrations"]
+
+    narrations = response.narrations
     
     # Validate count
     if len(narrations) > n_scenes:
@@ -181,19 +181,14 @@ async def generate_narrations_from_content(
         max_words=max_words
     )
     
-    response = await llm_service(
+    response: NarrationResponse = await llm_service(
         prompt=prompt,
         temperature=0.8,
-        max_tokens=2000
+        max_tokens=8192,
+        response_type=NarrationResponse,
     )
-    
-    # Parse JSON
-    result = _parse_json(response)
-    
-    if "narrations" not in result:
-        raise ValueError("Invalid response format: missing 'narrations' key")
-    
-    narrations = result["narrations"]
+
+    narrations = response.narrations
     
     # Validate count
     if len(narrations) > n_scenes:

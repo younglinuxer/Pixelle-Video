@@ -26,14 +26,21 @@ Services:
 - ComfyBaseService: Base class for ComfyUI-based services
 """
 
+from pixelle_video.services.asset_service import AssetService
 from pixelle_video.services.comfy_base_service import ComfyBaseService
-from pixelle_video.services.llm_service import LLMService
-from pixelle_video.services.tts_service import TTSService
-from pixelle_video.services.media import MediaService
-from pixelle_video.services.video import VideoService
+from pixelle_video.services.compatibility import CompatibilityService
 from pixelle_video.services.frame_processor import FrameProcessor
-from pixelle_video.services.persistence import PersistenceService
 from pixelle_video.services.history_manager import HistoryManager
+from pixelle_video.services.llm_service import LLMService
+from pixelle_video.services.media import MediaService
+from pixelle_video.services.media_quality import MediaQualityService
+from pixelle_video.services.persistence import PersistenceService
+from pixelle_video.services.project_persistence import ProjectPersistenceService
+from pixelle_video.services.project_service import ProjectService
+from pixelle_video.services.render_catalog import RenderCatalogService
+from pixelle_video.services.style_service import StyleService
+from pixelle_video.services.tts_service import TTSService
+from pixelle_video.services.video import VideoService
 
 # Backward compatibility alias
 ImageService = MediaService
@@ -48,5 +55,12 @@ __all__ = [
     "FrameProcessor",
     "PersistenceService",
     "HistoryManager",
+    "AssetService",
+    "CompatibilityService",
+    "ProjectPersistenceService",
+    "ProjectService",
+    "StyleService",
+    "MediaQualityService",
+    "RenderCatalogService",
 ]
 

@@ -22,6 +22,8 @@ Or with custom settings:
     uv run python api/app.py --host 0.0.0.0 --port 8080 --reload
 """
 
+# ruff: noqa: E402 -- script mode adds the repository root before local imports.
+
 import sys
 from pathlib import Path
 
@@ -34,27 +36,29 @@ if str(_project_root) not in sys.path:
 
 import argparse
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
 from api.config import api_config
-from api.tasks import task_manager
 from api.dependencies import shutdown_pixelle_video
 
 # Import routers
 from api.routers import (
-    health_router,
-    llm_router,
-    tts_router,
-    image_router,
     content_router,
-    video_router,
-    tasks_router,
     files_router,
-    resources_router,
     frame_router,
+    health_router,
+    image_router,
+    llm_router,
+    projects_router,
+    resources_router,
+    tasks_router,
+    tts_router,
+    video_router,
 )
+from api.tasks import task_manager
 
 
 @asynccontextmanager
@@ -133,6 +137,7 @@ app.include_router(tasks_router, prefix=api_config.api_prefix)
 app.include_router(files_router, prefix=api_config.api_prefix)
 app.include_router(resources_router, prefix=api_config.api_prefix)
 app.include_router(frame_router, prefix=api_config.api_prefix)
+app.include_router(projects_router, prefix=api_config.api_prefix)
 
 
 @app.get("/")
@@ -153,6 +158,8 @@ async def root():
             "files": f"{api_config.api_prefix}/files",
             "resources": f"{api_config.api_prefix}/resources",
             "frame": f"{api_config.api_prefix}/frame",
+            "projects": f"{api_config.api_prefix}/projects",
+            "styles": f"{api_config.api_prefix}/styles",
         }
     }
 

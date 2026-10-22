@@ -131,7 +131,12 @@ class PreflightService:
         template_type = get_template_type(Path(frame_template).name)
         mode = params.get("mode", "generate")
         title = params.get("title")
-        require_llm = mode == "generate" or not title or template_type in {"image", "video"}
+        has_locked_plan = bool(params.get("planned_narrations")) and (
+            template_type == "static" or bool(params.get("planned_image_prompts"))
+        )
+        require_llm = not has_locked_plan and (
+            mode == "generate" or not title or template_type in {"image", "video"}
+        )
 
         workflows: list[str] = []
         tts_mode = params.get("tts_inference_mode") or "local"
@@ -205,7 +210,14 @@ class PreflightService:
         else:
             report = PreflightReport()
             asset_suffixes = {Path(path).suffix.lower() for path in assets}
-            if asset_suffixes & {".jpg", ".jpeg", ".png", ".gif", ".webp"}:
+            asset_kinds = params.get("asset_kinds") or {}
+            has_images = any(asset_kinds.get(path) == "image" for path in assets) or bool(
+                asset_suffixes & {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tif", ".tiff"}
+            )
+            has_videos = any(asset_kinds.get(path) == "video" for path in assets) or bool(
+                asset_suffixes & {".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v"}
+            )
+            if has_images:
                 image_workflow = params.get("analysis_image_workflow")
                 if image_workflow:
                     workflows.append(image_workflow)
@@ -214,7 +226,7 @@ class PreflightService:
                         "analysis.image_workflow_missing",
                         "Image assets require an image-analysis workflow.",
                     )
-            if asset_suffixes & {".mp4", ".mov", ".avi", ".mkv", ".webm"}:
+            if has_videos:
                 video_workflow = params.get("analysis_video_workflow")
                 if video_workflow:
                     workflows.append(video_workflow)

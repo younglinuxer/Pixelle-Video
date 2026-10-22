@@ -16,18 +16,21 @@ System settings component for web UI
 
 import streamlit as st
 
-from web.i18n import tr, get_language
-from web.utils.streamlit_helpers import safe_rerun
 from pixelle_video.config import config_manager
+from web.i18n import get_language, tr
+from web.utils.streamlit_helpers import safe_rerun
 
 
 def render_advanced_settings():
-    """Render system configuration (required) with 2-column layout"""
+    """Render required planning configuration and optional rendering backends."""
     # Check if system is configured
     is_configured = config_manager.validate()
     
     # Expand if not configured, collapse if configured
     with st.expander(tr("settings.title"), expanded=not is_configured):
+        st.caption(tr("settings.architecture_hint"))
+        st.caption(tr("settings.storage_hint"))
+
         # 2-column layout: LLM | ComfyUI, followed by direct media API providers.
         llm_col, comfyui_col = st.columns(2)
         
@@ -37,9 +40,14 @@ def render_advanced_settings():
         with llm_col:
             with st.container(border=True):
                 st.markdown(f"**{tr('settings.llm.title')}**")
+                st.caption(tr("settings.llm.purpose"))
                 
                 # Quick preset selection
-                from pixelle_video.llm_presets import get_preset_names, get_preset, find_preset_by_base_url_and_model
+                from pixelle_video.llm_presets import (
+                    find_preset_by_base_url_and_model,
+                    get_preset,
+                    get_preset_names,
+                )
                 
                 # Custom at the end
                 preset_names = get_preset_names() + ["Custom"]
@@ -57,6 +65,9 @@ def render_advanced_settings():
                 if current_preset:
                     # Current config matches a preset
                     default_index = preset_names.index(current_preset)
+                elif not current_llm["base_url"] and not current_llm["model"]:
+                    # New installations start with the supported DeepSeek preset.
+                    default_index = preset_names.index("DeepSeek")
                 else:
                     # Current config doesn't match any preset -> Custom
                     default_index = len(preset_names) - 1
@@ -201,6 +212,13 @@ def render_advanced_settings():
                     )
                 else:
                     llm_model = selected_model_option
+
+                llm_thinking_enabled = st.toggle(
+                    tr("settings.llm.thinking_enabled"),
+                    value=bool(current_llm.get("thinking_enabled", False)),
+                    help=tr("settings.llm.thinking_enabled_help"),
+                    key="llm_thinking_enabled",
+                )
         
         # ====================================================================
         # Column 2: ComfyUI Settings
@@ -208,9 +226,17 @@ def render_advanced_settings():
         with comfyui_col:
             with st.container(border=True):
                 st.markdown(f"**{tr('settings.comfyui.title')}**")
+                st.caption(tr("settings.comfyui.purpose"))
                 
                 # Get current configuration
                 comfyui_config = config_manager.get_comfyui_config()
+                runninghub_api_key = comfyui_config.get("runninghub_api_key", "")
+                runninghub_concurrent_limit = comfyui_config.get(
+                    "runninghub_concurrent_limit", 1
+                )
+                runninghub_48g_enabled = (
+                    comfyui_config.get("runninghub_instance_type") == "plus"
+                )
                 
                 # Local/Self-hosted ComfyUI configuration
                 st.markdown(f"**{tr('settings.comfyui.local_title')}**")
@@ -243,52 +269,57 @@ def render_advanced_settings():
                     except Exception as e:
                         st.error(f"{tr('status.connection_failed')}: {str(e)}")
                 
-                st.markdown("---")
-                
                 # RunningHub cloud configuration
-                st.markdown(f"**{tr('settings.comfyui.cloud_title')}**")
-                runninghub_api_key = st.text_input(
-                    tr("settings.comfyui.runninghub_api_key"),
-                    value=comfyui_config.get("runninghub_api_key", ""),
-                    type="password",
-                    help=tr("settings.comfyui.runninghub_api_key_help"),
-                    key="runninghub_api_key_input"
+                show_runninghub = st.toggle(
+                    tr("settings.comfyui.cloud_title"),
+                    value=bool(runninghub_api_key),
+                    key="show_runninghub_settings",
                 )
-                st.caption(
-                    f"{tr('settings.comfyui.runninghub_hint')} "
-                    f"[{tr('settings.comfyui.runninghub_get_api_key')}]"
-                    f"(https://www.runninghub{'.cn' if get_language() == 'zh_CN' else '.ai'}/?inviteCode=bozpdlbj)"
-                )
-                
-                # RunningHub concurrent limit and instance type (in one row)
-                limit_col, instance_col = st.columns(2)
-                with limit_col:
-                    runninghub_concurrent_limit = st.number_input(
-                        tr("settings.comfyui.runninghub_concurrent_limit"),
-                        min_value=1,
-                        max_value=10,
-                        value=comfyui_config.get("runninghub_concurrent_limit", 1),
-                        help=tr("settings.comfyui.runninghub_concurrent_limit_help"),
-                        key="runninghub_concurrent_limit_input"
+                if show_runninghub:
+                    st.caption(tr("settings.comfyui.cloud_purpose"))
+                    runninghub_api_key = st.text_input(
+                        tr("settings.comfyui.runninghub_api_key"),
+                        value=comfyui_config.get("runninghub_api_key", ""),
+                        type="password",
+                        help=tr("settings.comfyui.runninghub_api_key_help"),
+                        key="runninghub_api_key_input"
                     )
-                with instance_col:
-                    # Check if instance type is "plus" (48G VRAM enabled)
-                    current_instance_type = comfyui_config.get("runninghub_instance_type") or ""
-                    is_plus_enabled = current_instance_type == "plus"
-                    # Instance type options with i18n
-                    instance_options = [
-                        tr("settings.comfyui.runninghub_instance_24g"),
-                        tr("settings.comfyui.runninghub_instance_48g"),
-                    ]
-                    runninghub_instance_type_display = st.selectbox(
-                        tr("settings.comfyui.runninghub_instance_type"),
-                        options=instance_options,
-                        index=1 if is_plus_enabled else 0,
-                        help=tr("settings.comfyui.runninghub_instance_type_help"),
-                        key="runninghub_instance_type_input"
+                    st.caption(
+                        f"{tr('settings.comfyui.runninghub_hint')} "
+                        f"[{tr('settings.comfyui.runninghub_get_api_key')}]"
+                        f"(https://www.runninghub{'.cn' if get_language() == 'zh_CN' else '.ai'}/?inviteCode=bozpdlbj)"
                     )
-                    # Convert display value back to actual value
-                    runninghub_48g_enabled = runninghub_instance_type_display == tr("settings.comfyui.runninghub_instance_48g")
+
+                    # RunningHub concurrent limit and instance type (in one row)
+                    limit_col, instance_col = st.columns(2)
+                    with limit_col:
+                        runninghub_concurrent_limit = st.number_input(
+                            tr("settings.comfyui.runninghub_concurrent_limit"),
+                            min_value=1,
+                            max_value=10,
+                            value=comfyui_config.get("runninghub_concurrent_limit", 1),
+                            help=tr("settings.comfyui.runninghub_concurrent_limit_help"),
+                            key="runninghub_concurrent_limit_input"
+                        )
+                    with instance_col:
+                        # Check if instance type is "plus" (48G VRAM enabled)
+                        current_instance_type = comfyui_config.get("runninghub_instance_type") or ""
+                        is_plus_enabled = current_instance_type == "plus"
+                        instance_options = [
+                            tr("settings.comfyui.runninghub_instance_24g"),
+                            tr("settings.comfyui.runninghub_instance_48g"),
+                        ]
+                        runninghub_instance_type_display = st.selectbox(
+                            tr("settings.comfyui.runninghub_instance_type"),
+                            options=instance_options,
+                            index=1 if is_plus_enabled else 0,
+                            help=tr("settings.comfyui.runninghub_instance_type_help"),
+                            key="runninghub_instance_type_input"
+                        )
+                        runninghub_48g_enabled = (
+                            runninghub_instance_type_display
+                            == tr("settings.comfyui.runninghub_instance_48g")
+                        )
 
         # ====================================================================
         # Direct API media providers
@@ -306,14 +337,31 @@ def render_advanced_settings():
             "ark": "https://ark.cn-beijing.volces.com/api/v3",
             "kling": "https://api-beijing.klingai.com",
         }
+        api_print_model_input = bool(common_cfg.get("print_model_input", False))
+        api_local_proxy = common_cfg.get("local_proxy", "")
+        api_openai_use_proxy = bool(openai_cfg.get("use_proxy", False))
+        api_openai_key = openai_cfg.get("api_key", "")
+        api_openai_base_url = openai_cfg.get("base_url") or default_api_base_urls["openai"]
+        api_dashscope_use_proxy = bool(dashscope_cfg.get("use_proxy", False))
+        api_dashscope_key = dashscope_cfg.get("api_key", "")
+        api_dashscope_base_url = (
+            dashscope_cfg.get("base_url") or default_api_base_urls["dashscope"]
+        )
+        api_ark_use_proxy = bool(ark_cfg.get("use_proxy", False))
+        api_ark_key = ark_cfg.get("api_key", "")
+        api_ark_base_url = ark_cfg.get("base_url") or default_api_base_urls["ark"]
+        api_kling_use_proxy = bool(kling_cfg.get("use_proxy", False))
+        api_kling_base_url = kling_cfg.get("base_url") or default_api_base_urls["kling"]
+        api_kling_access_key = kling_cfg.get("access_key", "")
+        api_kling_secret_key = kling_cfg.get("secret_key", "")
 
-        with st.container(border=True):
-            st.markdown("**🧩 API 媒体模型**" if zh else "**🧩 API Media Models**")
-            st.caption(
-                "用于直连图像/视频模型，不影响上方 LLM 与 ComfyUI/RunningHub 配置。"
-                if zh
-                else "Used for direct image/video model calls. This does not affect the LLM or ComfyUI/RunningHub settings above."
-            )
+        show_api_media = st.toggle(
+            tr("settings.api_media.title"),
+            value=False,
+            key="show_api_media_settings",
+        )
+        if show_api_media:
+            st.info(tr("settings.api_media.purpose"))
 
             common_col, proxy_col = st.columns(2)
             with common_col:
@@ -440,7 +488,12 @@ def render_advanced_settings():
                     if not (llm_api_key and llm_base_url and llm_model):
                         st.error(tr("status.llm_config_incomplete"))
                     else:
-                        config_manager.set_llm_config(llm_api_key, llm_base_url, llm_model)
+                        config_manager.set_llm_config(
+                            llm_api_key,
+                            llm_base_url,
+                            llm_model,
+                            thinking_enabled=llm_thinking_enabled,
+                        )
                     
                     # Save ComfyUI configuration (optional fields, always save what's provided)
                     # Convert checkbox to instance type: True -> "plus", False -> ""

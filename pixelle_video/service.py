@@ -24,18 +24,26 @@ from comfykit import ComfyKit
 from loguru import logger
 
 from pixelle_video.config import config_manager
+from pixelle_video.config.schema import AssetConfig, ProjectConfig
 from pixelle_video.pipelines.asset_based import AssetBasedPipeline
 from pixelle_video.pipelines.custom import CustomPipeline
 from pixelle_video.pipelines.standard import StandardPipeline
 from pixelle_video.services.api_asset_analysis import APIAssetAnalysisService
 from pixelle_video.services.api_media import APIProviderMediaService
+from pixelle_video.services.asset_service import AssetService
+from pixelle_video.services.compatibility import CompatibilityService
 from pixelle_video.services.frame_processor import FrameProcessor
 from pixelle_video.services.history_manager import HistoryManager
 from pixelle_video.services.image_analysis import ImageAnalysisService
 from pixelle_video.services.llm_service import LLMService
 from pixelle_video.services.media import MediaService
+from pixelle_video.services.media_quality import MediaQualityService
 from pixelle_video.services.persistence import PersistenceService
 from pixelle_video.services.preflight import PreflightService
+from pixelle_video.services.project_persistence import ProjectPersistenceService
+from pixelle_video.services.project_service import ProjectService
+from pixelle_video.services.render_catalog import RenderCatalogService
+from pixelle_video.services.style_service import StyleService
 from pixelle_video.services.tts_service import TTSService
 from pixelle_video.services.video import VideoService
 from pixelle_video.services.video_analysis import VideoAnalysisService
@@ -99,6 +107,12 @@ class PixelleVideoCore:
         self.persistence: Optional[PersistenceService] = None
         self.preflight: Optional[PreflightService] = None
         self.history: Optional[HistoryManager] = None
+        self.projects: Optional[ProjectService] = None
+        self.styles: Optional[StyleService] = None
+        self.assets: Optional[AssetService] = None
+        self.compatibility: Optional[CompatibilityService] = None
+        self.render_catalog: Optional[RenderCatalogService] = None
+        self.media_quality: Optional[MediaQualityService] = None
         
         # Video generation pipelines (dictionary of pipeline_name -> pipeline_instance)
         self.pipelines = {}
@@ -212,6 +226,29 @@ class PixelleVideoCore:
         self.persistence = PersistenceService(output_dir="output")
         self.preflight = PreflightService(self)
         self.history = HistoryManager(self.persistence)
+        project_config = getattr(config_manager.config, "projects", ProjectConfig())
+        asset_config = getattr(config_manager.config, "assets", AssetConfig())
+        self.styles = StyleService(self.llm, root=project_config.styles_root)
+        self.compatibility = CompatibilityService(
+            root=project_config.compatibility_root,
+            comfyui_url=config_manager.config.comfyui.comfyui_url,
+            api_key=config_manager.config.comfyui.comfyui_api_key,
+            runninghub_api_key=config_manager.config.comfyui.runninghub_api_key,
+        )
+        self.assets = AssetService(
+            root=asset_config.root,
+            max_file_size_mb=asset_config.max_file_size_mb,
+            allowed_import_roots=asset_config.allowed_import_roots,
+        )
+        self.render_catalog = RenderCatalogService()
+        self.media_quality = MediaQualityService(output_root="output")
+        project_persistence = ProjectPersistenceService(root=project_config.root)
+        self.projects = ProjectService(
+            self,
+            persistence=project_persistence,
+            styles=self.styles,
+            compatibility=self.compatibility,
+        )
         
         # 2. Register video generation pipelines
         self.pipelines = {

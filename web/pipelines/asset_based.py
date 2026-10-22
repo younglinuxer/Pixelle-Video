@@ -68,7 +68,7 @@ class AssetBasedPipelineUI(PipelineUI):
         # Left Column: Asset Upload & Video Info
         # ====================================================================
         with left_col:
-            asset_params = self._render_asset_input()
+            asset_params = self._render_asset_input(pixelle_video)
             bgm_params = render_bgm_section(key_prefix="asset_")
             render_version_info()
         
@@ -92,7 +92,7 @@ class AssetBasedPipelineUI(PipelineUI):
             
             self._render_output_preview(pixelle_video, video_params)
     
-    def _render_asset_input(self) -> dict:
+    def _render_asset_input(self, pixelle_video: Any) -> dict:
         """Render asset upload section"""
         with st.container(border=True):
             st.markdown(f"**{tr('asset_based.section.assets')}**")
@@ -103,44 +103,94 @@ class AssetBasedPipelineUI(PipelineUI):
                 st.markdown(f"**{tr('help.how')}**")
                 st.markdown(tr("asset_based.assets.how"))
             
-            # File uploader for multiple files
+            projects = pixelle_video.projects.list()
+            project = None
+            if projects:
+                project_ids = [item.project_id for item in projects]
+                selected_project_id = st.selectbox(
+                    tr("asset_based.assets.project_library"),
+                    project_ids,
+                    format_func=lambda value: next(
+                        (
+                            item.title or item.original_prompt[:36]
+                            for item in projects
+                            if item.project_id == value
+                        ),
+                        value,
+                    ),
+                    key="asset_library_project",
+                )
+                project = pixelle_video.projects.get(selected_project_id)
+            else:
+                st.info(tr("asset_based.assets.create_project_first"))
+
+            library_assets = project.assets if project else []
+            selected_asset_ids = st.multiselect(
+                tr("asset_based.assets.library_selection"),
+                [asset.asset_id for asset in library_assets],
+                default=[asset.asset_id for asset in library_assets],
+                format_func=lambda value: next(
+                    (
+                        asset.original_name
+                        for asset in library_assets
+                        if asset.asset_id == value
+                    ),
+                    value,
+                ),
+                key="asset_library_selection",
+            )
+
+            # File uploader for multiple decoder-supported files.
             uploaded_files = st.file_uploader(
                 tr("asset_based.assets.upload"),
-                type=["jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "avi", "mkv", "webm"],
                 accept_multiple_files=True,
                 help=tr("asset_based.assets.upload_help"),
                 key="asset_files"
             )
-            
-            # Save uploaded files to temp directory with unique session ID
-            asset_paths = []
-            if uploaded_files:
-                import uuid
-                session_id = str(uuid.uuid4()).replace('-', '')[:12]
-                temp_dir = Path(f"temp/assets_{session_id}")
-                temp_dir.mkdir(parents=True, exist_ok=True)
-                
+
+            if uploaded_files and project and st.button(
+                tr("asset_based.assets.import_to_library"),
+                key=f"asset-library-import:{project.project_id}:{project.revision}",
+            ):
+                revision = project.revision
                 for uploaded_file in uploaded_files:
-                    file_path = temp_dir / uploaded_file.name
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    asset_paths.append(str(file_path.absolute()))
-                
+                    uploaded_file.seek(0)
+                    try:
+                        asset = pixelle_video.assets.ingest_upload(
+                            project.project_id,
+                            uploaded_file.name,
+                            uploaded_file,
+                        )
+                        revision = pixelle_video.projects.add_asset(
+                            project.project_id,
+                            revision,
+                            asset,
+                        ).revision
+                    except Exception as exc:
+                        st.error(str(exc))
+                        break
+                else:
+                    st.success(tr("asset_based.assets.imported"))
+                    st.rerun()
+
+            selected_assets = [
+                asset for asset in library_assets if asset.asset_id in selected_asset_ids
+            ]
+            asset_paths = [asset.original_path for asset in selected_assets]
+            if selected_assets:
                 st.success(tr("asset_based.assets.count", count=len(asset_paths)))
-                
-                # Preview uploaded assets
                 with st.expander(tr("asset_based.assets.preview"), expanded=True):
-                    # Show in a grid (3 columns)
                     cols = st.columns(3)
-                    for i, (file, path) in enumerate(zip(uploaded_files, asset_paths)):
+                    for i, asset in enumerate(selected_assets):
                         with cols[i % 3]:
-                            # Check if image or video
-                            ext = Path(path).suffix.lower()
-                            if ext in [".jpg", ".jpeg", ".png", ".gif", ".webp"]:
-                                st.image(file, caption=file.name, use_container_width=True)
-                            elif ext in [".mp4", ".mov", ".avi", ".mkv", ".webm"]:
-                                st.video(file)
-                                st.caption(file.name)
+                            preview_path = asset.thumbnail_path or asset.proxy_path
+                            if asset.media_kind == "image" and preview_path:
+                                st.image(preview_path, caption=asset.original_name, use_container_width=True)
+                            elif asset.media_kind == "video":
+                                st.video(asset.proxy_path or asset.original_path)
+                                st.caption(asset.original_name)
+                            else:
+                                st.audio(asset.original_path)
             else:
                 st.info(tr("asset_based.assets.empty_hint"))
         
@@ -165,6 +215,9 @@ class AssetBasedPipelineUI(PipelineUI):
         
         return {
             "assets": asset_paths,
+            "asset_kinds": {
+                asset.original_path: asset.media_kind for asset in selected_assets
+            },
             "video_title": video_title,
             "intent": intent if intent else None
         }
@@ -216,10 +269,9 @@ class AssetBasedPipelineUI(PipelineUI):
             has_api_analysis = bool(api_vlm_models)
 
             asset_paths = (asset_params or {}).get("assets") or []
-            image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
-            video_exts = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
-            has_image_assets = any(Path(path).suffix.lower() in image_exts for path in asset_paths)
-            has_video_assets = any(Path(path).suffix.lower() in video_exts for path in asset_paths)
+            asset_kinds = (asset_params or {}).get("asset_kinds") or {}
+            has_image_assets = any(asset_kinds.get(path) == "image" for path in asset_paths)
+            has_video_assets = any(asset_kinds.get(path) == "video" for path in asset_paths)
 
             def analysis_source_available(source_name: str) -> bool:
                 source_dir = Path("workflows") / source_name
@@ -570,6 +622,7 @@ class AssetBasedPipelineUI(PipelineUI):
 
                     ctx = run_async(pipeline(
                         assets=video_params["assets"],
+                        asset_kinds=video_params.get("asset_kinds", {}),
                         video_title=video_params.get("video_title", ""),
                         intent=video_params.get("intent"),
                         duration=video_params.get("duration", 30),

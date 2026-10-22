@@ -16,6 +16,7 @@ Configuration schema with Pydantic models
 Single source of truth for all configuration defaults and validation.
 """
 from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -24,6 +25,10 @@ class LLMConfig(BaseModel):
     api_key: str = Field(default="", description="LLM API Key")
     base_url: str = Field(default="", description="LLM API Base URL")
     model: str = Field(default="", description="LLM Model Name")
+    thinking_enabled: bool = Field(
+        default=False,
+        description="Enable provider reasoning mode when the selected endpoint supports it",
+    )
 
 
 class APIProviderCommonConfig(BaseModel):
@@ -112,6 +117,29 @@ class ComfyUIConfig(BaseModel):
     video: VideoSubConfig = Field(default_factory=VideoSubConfig, description="Video-specific configuration")
 
 
+class AssetConfig(BaseModel):
+    """Project asset ingestion policy."""
+
+    root: str = Field(default="data/assets", description="Immutable project asset root")
+    max_file_size_mb: int = Field(default=512, ge=1, le=10240)
+    allowed_import_roots: list[str] = Field(default_factory=list)
+
+
+class ProjectConfig(BaseModel):
+    """Durable staged-project storage."""
+
+    root: str = Field(default="data/projects")
+    styles_root: str = Field(default="data/styles")
+    compatibility_root: str = Field(default="data/compatibility")
+
+
+class WebConfig(BaseModel):
+    """Web feature flags for gradual rollout and rollback."""
+
+    creation_flow: str = Field(default="staged")
+    enable_legacy_quick_create: bool = Field(default=True)
+
+
 class TemplateConfig(BaseModel):
     """Template configuration"""
     default_template: str = Field(
@@ -127,6 +155,9 @@ class PixelleVideoConfig(BaseModel):
     api_providers: APIProvidersConfig = Field(default_factory=APIProvidersConfig)
     comfyui: ComfyUIConfig = Field(default_factory=ComfyUIConfig)
     template: TemplateConfig = Field(default_factory=TemplateConfig)
+    assets: AssetConfig = Field(default_factory=AssetConfig)
+    projects: ProjectConfig = Field(default_factory=ProjectConfig)
+    web: WebConfig = Field(default_factory=WebConfig)
     
     def is_llm_configured(self) -> bool:
         """Check if LLM is properly configured"""

@@ -16,10 +16,15 @@ LLM Presets - Predefined configurations for popular LLM providers
 All providers support OpenAI SDK protocol.
 """
 
-from typing import Dict, Any, List
-
+from typing import Any, Dict, List
 
 LLM_PRESETS: List[Dict[str, Any]] = [
+    {
+        "name": "DeepSeek",
+        "base_url": "https://api.deepseek.com",
+        "model": "deepseek-v4-pro",
+        "api_key_url": "https://platform.deepseek.com/api_keys",
+    },
     {
         "name": "Qwen",
         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -37,12 +42,6 @@ LLM_PRESETS: List[Dict[str, Any]] = [
         "base_url": "https://api.anthropic.com/v1/",
         "model": "claude-sonnet-4-5",
         "api_key_url": "https://console.anthropic.com/settings/keys",
-    },
-    {
-        "name": "DeepSeek",
-        "base_url": "https://api.deepseek.com",
-        "model": "deepseek-chat",
-        "api_key_url": "https://platform.deepseek.com/api_keys",
     },
     {
         "name": "Ollama",

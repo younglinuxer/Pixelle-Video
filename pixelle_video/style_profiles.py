@@ -1,0 +1,226 @@
+"""Built-in, versioned video style profiles."""
+
+from __future__ import annotations
+
+from copy import deepcopy
+
+from pixelle_video.models.project import StyleProfile
+
+DEFAULT_VIDEO_WORKFLOWS = [
+    "selfhost/video_minimax_h3_t2v.json",
+    "selfhost/video_wan2.1_fusionx.json",
+    "runninghub/video_wan2.1_fusionx.json",
+    "runninghub/video_wan2.2.json",
+    "runninghub/video_Z_image_wan2.2.json",
+    "runninghub/video_qwen_wan2.2.json",
+]
+
+
+def _style(**overrides) -> StyleProfile:
+    base = {
+        "version": "1.0.0",
+        "wording_rules": ["Use concrete language", "Avoid unsupported claims"],
+        "negative_prompt": "low quality, unreadable text, watermark, logo, malformed anatomy",
+        "composition_rules": ["Keep the subject readable in the safe area", "Maintain shot continuity"],
+        "material_rules": ["Consistent texture and rendering quality across scenes"],
+        "character_rules": ["Preserve identity, wardrobe, age, and proportions across scenes"],
+        "camera_rules": ["Use motivated camera movement", "Avoid abrupt axis changes"],
+        "transition_suggestions": ["cut", "dissolve"],
+        "recommended_aspect_ratios": ["9:16", "16:9", "1:1"],
+        "allowed_workflows": [
+            *DEFAULT_VIDEO_WORKFLOWS,
+            "selfhost/image_flux.json",
+            "selfhost/image_qwen.json",
+            "selfhost/image_nano_banana.json",
+            "runninghub/image_flux.json",
+            "runninghub/image_qwen.json",
+        ],
+        "recommended_voice_ids": ["zh-CN-YunjianNeural"],
+        "tts_speed_range": (0.95, 1.15),
+        "bgm_volume_range": (0.12, 0.24),
+        "builtin": True,
+    }
+    base.update(overrides)
+    return StyleProfile(**base)
+
+
+_BUILTIN_STYLES = [
+    _style(
+        style_id="documentary_realism",
+        name="纪实写实",
+        description="自然光、真实环境与克制镜头，适合人物、事件和知识记录。",
+        suitable_for=["人物故事", "知识纪实", "品牌记录"],
+        script_tone="客观、清晰、有现场感",
+        narrative_pacing="先给事实，再补背景和细节，节奏稳定",
+        visual_prompt_prefix="documentary photography, photorealistic, natural available light, authentic environment",
+        color_rules=["Neutral color science", "Natural skin tones", "Controlled saturation"],
+        lighting_rules=["Available light", "Realistic contrast", "No artificial glamour glow"],
+        action_intensity="low",
+        shot_pacing="measured",
+        recommended_template_families=["image_full", "image_default", "video_default"],
+        bgm_tags=["documentary", "ambient", "restrained"],
+        preview_images=["docs/images/1080x1920/image_full.jpg"],
+        palette=["#334155", "#94A3B8", "#E2E8F0"],
+        cost_tier="medium",
+    ),
+    _style(
+        style_id="cinematic_narrative",
+        name="电影叙事",
+        description="强叙事光影、景别变化和电影化调色，适合情绪故事与品牌短片。",
+        suitable_for=["情绪故事", "品牌短片", "悬念叙事"],
+        script_tone="有冲突、有画面感、句式富有张力",
+        narrative_pacing="建立悬念，中段升级，结尾留余韵",
+        visual_prompt_prefix="cinematic film still, dramatic motivated lighting, shallow depth of field, rich production design",
+        color_rules=["Cohesive cinematic grade", "Controlled complementary colors"],
+        lighting_rules=["Motivated key light", "Layered shadows", "Practical highlights"],
+        camera_rules=["Mix establishing, medium and close shots", "Slow dolly or deliberate handheld"],
+        action_intensity="medium",
+        shot_pacing="dynamic",
+        transition_suggestions=["match cut", "motivated dissolve", "hard cut on action"],
+        recommended_template_families=["image_film", "image_full", "video_default"],
+        bgm_tags=["cinematic", "emotional", "rising"],
+        preview_images=["docs/images/1920x1080/image_film.jpg"],
+        palette=["#0F172A", "#9A3412", "#F59E0B"],
+        cost_tier="high",
+    ),
+    _style(
+        style_id="healing_fresh",
+        name="治愈清新",
+        description="柔和高调、空气感和慢节奏，适合生活方式、情绪与自然主题。",
+        suitable_for=["生活方式", "情绪陪伴", "自然"],
+        script_tone="温柔、真诚、短句留白",
+        narrative_pacing="舒缓推进，每个镜头表达单一情绪",
+        visual_prompt_prefix="soft healing lifestyle photography, airy natural light, pastel colors, calm atmosphere",
+        color_rules=["Pastel palette", "Low saturation", "Clean whites"],
+        lighting_rules=["Soft daylight", "Gentle highlight rolloff"],
+        action_intensity="low",
+        shot_pacing="slow",
+        transition_suggestions=["soft dissolve", "light leak"],
+        recommended_template_families=["image_healing", "video_healing", "image_life_insights_light"],
+        recommended_voice_ids=["zh-CN-XiaoxiaoNeural"],
+        tts_speed_range=(0.85, 1.05),
+        bgm_tags=["acoustic", "healing", "light"],
+        preview_images=["docs/images/1080x1920/image_healing.jpg"],
+        palette=["#D1FAE5", "#FDE68A", "#F8FAFC"],
+        cost_tier="low",
+    ),
+    _style(
+        style_id="anime_illustration",
+        name="动漫插画",
+        description="统一角色设定、清晰线稿与动画色块，适合故事、科普和轻娱乐。",
+        suitable_for=["故事", "轻科普", "二次元内容"],
+        script_tone="鲜明、轻快、角色驱动",
+        narrative_pacing="快速建立角色目标，动作和反应清楚",
+        visual_prompt_prefix="high quality anime illustration, clean expressive line art, cel shading, consistent character design",
+        color_rules=["Bold but controlled colors", "Stable character palette"],
+        lighting_rules=["Readable cel-shaded light", "Graphic rim light when motivated"],
+        character_rules=["Use a fixed character sheet", "Preserve face, hair, outfit and accessories"],
+        action_intensity="high",
+        shot_pacing="fast",
+        transition_suggestions=["whip cut", "graphic wipe", "impact frame"],
+        recommended_template_families=["image_cartoon", "image_satirical_cartoon", "image_full"],
+        allowed_workflows=[
+            *DEFAULT_VIDEO_WORKFLOWS,
+            "runninghub/image_qwen_chinese_cartoon.json",
+            "selfhost/image_qwen.json",
+            "selfhost/image_nano_banana.json",
+        ],
+        bgm_tags=["anime", "upbeat", "playful"],
+        preview_images=["docs/images/1080x1920/image_cartoon.png"],
+        palette=["#60A5FA", "#F472B6", "#FDE047"],
+        cost_tier="medium",
+    ),
+    _style(
+        style_id="minimal_graphic",
+        name="极简图文",
+        description="大字号、留白和几何信息层级，适合观点、清单和知识摘要。",
+        suitable_for=["观点表达", "清单", "知识摘要"],
+        script_tone="直接、精炼、结论优先",
+        narrative_pacing="一镜一个信息点，层次清楚",
+        visual_prompt_prefix="minimal editorial graphic, clean geometric composition, generous negative space, crisp typography area",
+        color_rules=["One accent color", "High text contrast", "Limited palette"],
+        lighting_rules=["Flat graphic lighting", "No decorative glow"],
+        character_rules=["Prefer symbols or simple silhouettes over detailed characters"],
+        action_intensity="low",
+        shot_pacing="medium",
+        transition_suggestions=["clean cut", "slide", "type reveal"],
+        recommended_template_families=["static_default", "static_excerpt", "image_minimal_framed", "image_ultrawide_minimal"],
+        bgm_tags=["minimal", "focus", "neutral"],
+        preview_images=["docs/images/1080x1080/image_minimal_framed.jpg"],
+        palette=["#0F172A", "#F8FAFC", "#22C55E"],
+        cost_tier="low",
+    ),
+    _style(
+        style_id="retro_film",
+        name="复古胶片",
+        description="暖色胶片、轻颗粒与年代质感，适合回忆、城市和人文内容。",
+        suitable_for=["回忆", "城市人文", "复古品牌"],
+        script_tone="怀旧、细腻、有时间感",
+        narrative_pacing="从具体物件切入，让记忆逐步展开",
+        visual_prompt_prefix="vintage analog film photography, warm faded colors, subtle grain, halation, period-authentic details",
+        negative_prompt="digital oversharpening, modern anachronism, heavy fake scratches, watermark, unreadable text",
+        color_rules=["Warm faded stock", "Soft blacks", "Muted greens"],
+        lighting_rules=["Warm practical light", "Soft bloom", "Natural falloff"],
+        action_intensity="low",
+        shot_pacing="slow",
+        transition_suggestions=["film dissolve", "dip to warm black"],
+        recommended_template_families=["image_fashion_vintage", "image_film", "image_book"],
+        bgm_tags=["vintage", "nostalgic", "vinyl"],
+        preview_images=["docs/images/1080x1920/image_fashion_vintage.jpg"],
+        palette=["#78350F", "#D6B98C", "#3F6212"],
+        cost_tier="medium",
+    ),
+    _style(
+        style_id="future_technology",
+        name="科技未来",
+        description="深色空间、冷色霓虹和精密界面感，适合科技、产品和数据主题。",
+        suitable_for=["科技产品", "AI", "数据解读"],
+        script_tone="理性、前瞻、强调因果和能力边界",
+        narrative_pacing="问题—机制—结果，节奏利落",
+        visual_prompt_prefix="futuristic technology visualization, dark precision interface, cyan violet accents, volumetric light",
+        color_rules=["Dark navy base", "Cyan and violet accents", "High contrast focal points"],
+        lighting_rules=["Controlled neon edge light", "Volumetric depth", "No blown highlights"],
+        action_intensity="medium",
+        shot_pacing="fast",
+        transition_suggestions=["data wipe", "scan transition", "match zoom"],
+        recommended_template_families=["image_neon", "image_wide_darktech", "image_modern"],
+        bgm_tags=["technology", "pulse", "electronic"],
+        preview_images=["docs/images/1920x1080/image_wide_darktech.jpg"],
+        palette=["#020617", "#06B6D4", "#8B5CF6"],
+        cost_tier="high",
+    ),
+    _style(
+        style_id="chinese_elegance",
+        name="国风雅致",
+        description="东方留白、雅色与克制笔触，适合传统文化、诗意叙事与非遗。",
+        suitable_for=["传统文化", "诗意叙事", "非遗"],
+        script_tone="含蓄、凝练、意象准确",
+        narrative_pacing="以意象串联，适度留白，避免堆砌辞藻",
+        visual_prompt_prefix="refined Chinese aesthetic, elegant negative space, ink and mineral pigment texture, restrained composition",
+        negative_prompt="stereotypical costume collage, excessive red and gold, modern logo, unreadable calligraphy, watermark",
+        color_rules=["Ink black", "Rice-paper white", "Muted mineral accents"],
+        lighting_rules=["Soft directional light", "Mist depth", "Quiet highlights"],
+        character_rules=["Historically coherent costume and objects", "Natural restrained gesture"],
+        action_intensity="low",
+        shot_pacing="slow",
+        transition_suggestions=["ink dissolve", "mist reveal", "slow cut"],
+        recommended_template_families=["image_elegant", "image_book", "image_full"],
+        bgm_tags=["guqin", "bamboo flute", "elegant"],
+        preview_images=["docs/images/1080x1920/image_elegant.jpg"],
+        palette=["#1C1917", "#E7E5E4", "#9F1239"],
+        cost_tier="medium",
+    ),
+]
+
+
+def get_builtin_styles() -> list[StyleProfile]:
+    """Return independent style instances so project overrides cannot mutate presets."""
+    return [style.model_copy(deep=True) for style in deepcopy(_BUILTIN_STYLES)]
+
+
+def get_builtin_style(style_id: str) -> StyleProfile:
+    """Return one built-in profile or raise a clear lookup error."""
+    for style in _BUILTIN_STYLES:
+        if style.style_id == style_id:
+            return style.model_copy(deep=True)
+    raise KeyError(f"Unknown style profile: {style_id}")

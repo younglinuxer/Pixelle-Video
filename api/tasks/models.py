@@ -17,6 +17,7 @@ Task data models
 from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -32,6 +33,7 @@ class TaskStatus(str, Enum):
 class TaskType(str, Enum):
     """Task type"""
     VIDEO_GENERATION = "video_generation"
+    PROJECT_PRODUCTION = "project_production"
 
 
 class TaskProgress(BaseModel):

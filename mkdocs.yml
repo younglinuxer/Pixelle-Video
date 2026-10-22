@@ -76,6 +76,7 @@ plugins:
             Configuration: 配置
             User Guide: 用户指南
             Web UI: Web 界面
+            Staged Creation: 分阶段创作
             API Usage: API 使用
             Workflows: 工作流定制
             Templates: 模板开发
@@ -144,6 +145,7 @@ nav:
     - Configuration: getting-started/configuration.md
   - User Guide:
     - Web UI: user-guide/web-ui.md
+    - Staged Creation: user-guide/staged-creation.md
     - API Usage: user-guide/api.md
     - Workflows: user-guide/workflows.md
     - Templates: user-guide/templates.md

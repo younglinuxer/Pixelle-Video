@@ -17,12 +17,18 @@ Handles task metadata and storyboard persistence to filesystem.
 """
 
 import json
-from pathlib import Path
-from typing import List, Optional, Dict, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
 from loguru import logger
 
-from pixelle_video.models.storyboard import Storyboard, StoryboardFrame, StoryboardConfig, ContentMetadata
+from pixelle_video.models.storyboard import (
+    ContentMetadata,
+    Storyboard,
+    StoryboardConfig,
+    StoryboardFrame,
+)
 
 
 class PersistenceService:
@@ -346,6 +352,7 @@ class PersistenceService:
             "media_width": config.media_width,
             "media_height": config.media_height,
             "media_workflow": config.media_workflow,
+            "api_video_params": config.api_video_params,
             "frame_template": config.frame_template,
             "template_params": config.template_params,
         }
@@ -368,6 +375,7 @@ class PersistenceService:
             media_width=data.get("media_width", data.get("image_width", 1024)),  # Backward compatibility
             media_height=data.get("media_height", data.get("image_height", 1024)),  # Backward compatibility
             media_workflow=data.get("media_workflow", data.get("image_workflow")),  # Backward compatibility
+            api_video_params=data.get("api_video_params"),
             frame_template=data.get("frame_template", "1080x1920/default.html"),
             template_params=data.get("template_params"),
         )
@@ -378,6 +386,9 @@ class PersistenceService:
             "index": frame.index,
             "narration": frame.narration,
             "image_prompt": frame.image_prompt,
+            "scene_id": frame.scene_id,
+            "style_id": frame.style_id,
+            "source_asset_ids": frame.source_asset_ids,
             "audio_path": frame.audio_path,
             "media_type": frame.media_type,
             "image_path": frame.image_path,
@@ -394,6 +405,9 @@ class PersistenceService:
             index=data["index"],
             narration=data["narration"],
             image_prompt=data["image_prompt"],
+            scene_id=data.get("scene_id"),
+            style_id=data.get("style_id"),
+            source_asset_ids=data.get("source_asset_ids", []),
             audio_path=data.get("audio_path"),
             media_type=data.get("media_type"),
             image_path=data.get("image_path"),

@@ -114,6 +114,13 @@ class StandardPipeline(LinearVideoPipeline):
 
     async def generate_content(self, ctx: PipelineContext):
         """Step 2: Generate or process script/narrations."""
+        planned_narrations = ctx.params.get("planned_narrations")
+        if planned_narrations is not None:
+            if not planned_narrations or not all(str(item).strip() for item in planned_narrations):
+                raise ValueError("Locked production snapshot contains empty narrations")
+            ctx.narrations = [str(item).strip() for item in planned_narrations]
+            logger.info("Using %s locked project narrations", len(ctx.narrations))
+            return
         mode = ctx.params.get("mode", "generate")
         text = ctx.input_text
         n_scenes = ctx.params.get("n_scenes", 5)
@@ -162,6 +169,13 @@ class StandardPipeline(LinearVideoPipeline):
 
     async def plan_visuals(self, ctx: PipelineContext):
         """Step 4: Generate image prompts or visual descriptions."""
+        planned_prompts = ctx.params.get("planned_image_prompts")
+        if planned_prompts is not None:
+            if len(planned_prompts) != len(ctx.narrations):
+                raise ValueError("Locked visual prompt count does not match narration count")
+            ctx.image_prompts = [str(item).strip() if item is not None else None for item in planned_prompts]
+            logger.info("Using %s locked project visual prompts", len(ctx.image_prompts))
+            return
         # Detect template type to determine if media generation is needed
         frame_template = ctx.params.get("frame_template") or "1080x1920/default.html"
         
@@ -291,11 +305,28 @@ class StandardPipeline(LinearVideoPipeline):
         )
         
         # Create frames
+        scene_ids = ctx.params.get("scene_ids") or []
+        style_id = ctx.params.get("style_id")
+        reusable_frames = ctx.params.get("reusable_frames") or {}
+        planned_media = ctx.params.get("planned_media") or []
         for i, (narration, image_prompt) in enumerate(zip(ctx.narrations, ctx.image_prompts)):
+            scene_id = scene_ids[i] if i < len(scene_ids) else None
+            reusable = reusable_frames.get(scene_id, {})
+            media = planned_media[i] if i < len(planned_media) else {}
             frame = StoryboardFrame(
                 index=i,
                 narration=narration,
                 image_prompt=image_prompt,
+                scene_id=scene_id,
+                style_id=style_id,
+                source_asset_ids=media.get("source_asset_ids", []),
+                audio_path=reusable.get("audio_path"),
+                media_type=reusable.get("media_type") or media.get("media_type"),
+                image_path=reusable.get("image_path") or media.get("image_path"),
+                video_path=reusable.get("video_path") or media.get("video_path"),
+                composed_image_path=reusable.get("composed_image_path"),
+                video_segment_path=reusable.get("video_segment_path"),
+                duration=float(reusable.get("duration") or 0),
                 created_at=datetime.now()
             )
             ctx.storyboard.frames.append(frame)
@@ -324,6 +355,13 @@ class StandardPipeline(LinearVideoPipeline):
             async def process_frame_with_semaphore(i: int, frame: StoryboardFrame):
                 nonlocal completed_count
                 async with semaphore:
+                    if frame.video_segment_path and Path(frame.video_segment_path).is_file():
+                        completed_count += 1
+                        logger.info(
+                            f"♻️ Reusing unchanged scene {frame.scene_id or i + 1}: "
+                            f"{frame.video_segment_path}"
+                        )
+                        return i, frame
                     base_progress = 0.2
                     frame_range = 0.6
                     per_frame_progress = frame_range / len(storyboard.frames)
@@ -405,13 +443,20 @@ class StandardPipeline(LinearVideoPipeline):
                     frame_total=len(storyboard.frames)
                 )
                 
-                processed_frame = await self.core.frame_processor(
-                    frame=frame,
-                    storyboard=storyboard,
-                    config=config,
-                    total_frames=len(storyboard.frames),
-                    progress_callback=frame_progress_callback
-                )
+                if frame.video_segment_path and Path(frame.video_segment_path).is_file():
+                    processed_frame = frame
+                    logger.info(
+                        f"♻️ Reusing unchanged scene {frame.scene_id or i + 1}: "
+                        f"{frame.video_segment_path}"
+                    )
+                else:
+                    processed_frame = await self.core.frame_processor(
+                        frame=frame,
+                        storyboard=storyboard,
+                        config=config,
+                        total_frames=len(storyboard.frames),
+                        progress_callback=frame_progress_callback
+                    )
                 storyboard.total_duration += processed_frame.duration
                 logger.info(f"✅ Frame {i+1} completed ({processed_frame.duration:.2f}s)")
 
@@ -431,6 +476,13 @@ class StandardPipeline(LinearVideoPipeline):
             bgm_volume=ctx.params.get("bgm_volume", 0.2),
             bgm_mode=ctx.params.get("bgm_mode", "loop")
         )
+
+        # Treat the encoded deliverable as authoritative. Container muxing and
+        # narration-driven trimming can make the final duration differ from the
+        # sum of provider clip durations.
+        final_duration = video_service._get_video_duration(final_video_path)
+        if final_duration > 0:
+            storyboard.total_duration = final_duration
         
         storyboard.final_video_path = final_video_path
         storyboard.completed_at = datetime.now()

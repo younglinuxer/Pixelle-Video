@@ -26,7 +26,7 @@ import httpx
 from loguru import logger
 
 from pixelle_video.models.progress import ProgressEvent
-from pixelle_video.models.storyboard import Storyboard, StoryboardFrame, StoryboardConfig
+from pixelle_video.models.storyboard import Storyboard, StoryboardConfig, StoryboardFrame
 
 
 class FrameProcessor:
@@ -114,7 +114,7 @@ class FrameProcessor:
             else:
                 frame.image_path = None
                 frame.media_type = None
-                logger.debug(f"  2/4: Skipped media generation (not required by template)")
+                logger.debug("  2/4: Skipped media generation (not required by template)")
         
             # Step 3: Compose frame (add subtitle)
             if progress_callback:
@@ -350,9 +350,6 @@ class FrameProcessor:
         # Resolve template path (handles various input formats)
         template_path = resolve_template_path(config.frame_template)
         
-        # Get content metadata from storyboard
-        content_metadata = storyboard.content_metadata if storyboard else None
-        
         # Build ext data
         ext = {
             "index": frame.index + 1,
@@ -397,7 +394,7 @@ class FrameProcessor:
         # Branch based on media type
         if frame.media_type == "video":
             # Video workflow: overlay HTML template on video, then add audio
-            logger.debug(f"  → Using video-based composition with HTML overlay")
+            logger.debug("  → Using video-based composition with HTML overlay")
             
             # Step 1: Overlay transparent HTML image on video
             # The composed_image_path contains the rendered HTML with transparent background
@@ -428,7 +425,7 @@ class FrameProcessor:
         elif frame.media_type == "image" or frame.media_type is None:
             # Image workflow: Use composed image directly
             # The asset_default.html template includes the image in the composition
-            logger.debug(f"  → Using image-based composition")
+            logger.debug("  → Using image-based composition")
             
             segment_path = video_service.create_video_from_image(
                 image=frame.composed_image_path,
@@ -441,6 +438,9 @@ class FrameProcessor:
             raise ValueError(f"Unknown media type: {frame.media_type}")
         
         frame.video_segment_path = segment_path
+        # Composition may trim or pad the generated media to narration length.
+        # Persist the encoded segment duration, not the raw provider clip length.
+        frame.duration = await self._get_video_duration(segment_path)
         
         logger.debug(f"  ✓ Video segment created: {segment_path}")
     
@@ -470,6 +470,7 @@ class FrameProcessor:
     ) -> str:
         """Download media (image or video) from URL to local file"""
         import os
+
         from pixelle_video.utils.os_util import get_task_frame_path
         output_path = get_task_frame_path(task_id, frame_index, media_type)
 
